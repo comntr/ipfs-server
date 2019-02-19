@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "start": "node http -p 12345 -r .comntr -n f1a7f16e85467150995247b890f2f5fa255f2f21"
+    "start": "node http -p 12345 -r .comntr"
   },
   "dependencies": {
     "commander": "2.19.0",

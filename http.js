@@ -12,26 +12,39 @@ const GET_COMMENTS_REGEX = /^\/[0-9a-f]{40}$/;
 cmdargs
   .option('-p, --port <n>', 'HTTP port.', parseInt)
   .option('-r, --root <s>', 'The root dir with the comment folder.')
-  .option('-n, --network-id <s>', 'The id to discover other servers.')
   .parse(process.argv);
 
 const rootDir = path.resolve(cmdargs.root);
 
-log.i('The network id:', cmdargs.networkId);
 log.i('The root folder:', rootDir);
 
 log.i('Starting IPFS client.');
 const ipfs = new IpfsClient({
   host: 'localhost',
   port: 5001,
-  protocol: 'http',  
+  protocol: 'http',
 });
+
+async function ipfsAddR(dirPath) {
+  log.i('Running ipfs add -r', dirPath);
+  let items = await ipfs.addFromFs(dirPath, { recursive: true });
+  let dirItem = items[items.length - 1];
+  log.i('ipfs add -r ->', dirItem.hash);
+  return dirItem.hash;
+}
 
 log.i('Starting HTTP server on port', cmdargs.port);
 
 const server = http.createServer(async (req, res) => {
   log.i(req.method, req.url);
   res.setHeader('Access-Control-Allow-Origin', '*');
+
+  if (req.method == 'GET' && req.url == '/') {
+    let hash = await ipfsAddR(rootDir);
+    res.statusCode = 200;
+    res.end(hash);
+    return;
+  }
 
   if (req.method == 'GET' && GET_COMMENTS_REGEX.test(req.url)) {
     let commDir = path.join(rootDir, req.url);
@@ -43,16 +56,14 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    log.i('Running ipfs add -r');
-    let items = await ipfs.addFromFs(commDir, { recursive: true });
-    let dirItem = items[items.length - 1];
-    log.i('ipfs add -r ->', dirItem.hash);
+    let hash = await ipfsAddR(commDir);
     res.statusCode = 200;
-    res.end(dirItem.hash);
-  } else {
-    res.statusCode = 400;
-    res.end();
+    res.end(hash);
+    return;
   }
+
+  res.statusCode = 400;
+  res.end();
 });
 
 server.listen(cmdargs.port, err => {
